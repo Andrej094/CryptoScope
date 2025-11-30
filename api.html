@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CryptoScope API Documentation</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        body { max-width: 900px; margin: auto; }
+        .code-block { background:#111; color:#0f0; padding:15px; border-radius:8px; font-size:14px; }
+        h1, h2, h3 { margin-top:35px; }
+    </style>
+</head>
+<body>
+
+<h1>📘 CryptoScope API Documentation</h1>
+<p>Welcome to the official API reference for the CryptoScope market intelligence system.
+    This service provides programmatic access to OHLCV historical data, real-time price summaries,
+    and ETL pipeline triggers.</p>
+
+<hr>
+
+<h2>📌 Base URL</h2>
+<pre class="code-block">
+http://localhost:8000
+</pre>
+
+<hr>
+
+<h2>🔹 GET /api/symbols</h2>
+<p>Returns a list of all supported crypto assets, enriched with:</p>
+<ul>
+    <li>Latest price</li>
+    <li>24h change (%)</li>
+    <li>Volume (24h)</li>
+    <li>ID + Rank</li>
+</ul>
+
+<h3>Example Request</h3>
+<pre class="code-block">
+GET http://localhost:8000/api/symbols
+</pre>
+
+<h3>Example Response</h3>
+<pre class="code-block">[
+  {
+    "id": 1,
+    "rank": 1,
+    "symbol": "BTC-USD",
+    "name": "BTC",
+    "price": 37800.25,
+    "vol": "15.2M",
+    "change": -1.24
+  },
+  {
+    "id": 2,
+    "rank": 2,
+    "symbol": "ETH-USD",
+    "name": "ETH",
+    "price": 2100.11,
+    "vol": "8.32M",
+    "change": 2.37
+  }
+]
+</pre>
+
+<h3>Notes</h3>
+<p>
+    This endpoint uses a single optimized DB scan that produces latest price/volume and 24h change
+    for every symbol in one sweep (<em>see load_latest_and_change_all()</em> in backend).
+</p>
+
+<hr>
+
+<h2>🔹 GET /api/prices/{symbol}</h2>
+<p>Returns full OHLCV history for one symbol, sorted by ascending date.</p>
+
+<h3>URL Params</h3>
+<pre class="code-block">{symbol} → e.g. BTC-USD, ETH-USD</pre>
+
+<h3>Example Request</h3>
+<pre class="code-block">
+GET http://localhost:8000/api/prices/BTC-USD
+</pre>
+
+<h3>Example Response</h3>
+<pre class="code-block">[
+  {
+    "date": "2021-01-01",
+    "open": 29300.15,
+    "high": 29650.00,
+    "low": 28800.28,
+    "close": 29374.12,
+    "volume": 12839200000
+  },
+  {
+    "date": "2021-01-02",
+    "open": 29374.12,
+    "high": 33100.00,
+    "low": 29000.01,
+    "close": 32155.22,
+    "volume": 25683000000
+  }
+]
+</pre>
+
+<h3>Notes</h3>
+<p>
+    Only pulled when you open a chart — back-end cost is low because it is ONE query.
+</p>
+
+<hr>
+
+<h2>🔹 POST /api/etl/run</h2>
+<p>Runs the entire ETL process:</p>
+<ol>
+    <li>Downloads a fresh symbol list</li>
+    <li>Checks which symbols already have data</li>
+    <li>Fetches missing OHLCV history</li>
+</ol>
+
+<h3>Example Request</h3>
+<pre class="code-block">
+POST http://localhost:8000/api/etl/run
+</pre>
+
+<h3>Example Response</h3>
+<pre class="code-block">{
+  "status": "completed"
+}
+</pre>
+
+<h3>Notes</h3>
+<p>
+    This endpoint triggers 3 internal functions from the backend
+    (<em>get_symbols</em>, <em>get_existing_status</em>, <em>update_data</em>).
+</p>
+
+<hr>
+
+<h2>📦 Example Usage (JavaScript)</h2>
+
+<h3>Get All Symbols</h3>
+<pre class="code-block">
+const res = await fetch("http://localhost:8000/api/symbols");
+const data = await res.json();
+console.log(data);
+</pre>
+
+<h3>Get Prices for One Symbol</h3>
+<pre class="code-block">
+const res = await fetch("http://localhost:8000/api/prices/BTC-USD");
+const candles = await res.json();
+console.log(candles);
+</pre>
+
+<h3>Run ETL</h3>
+<pre class="code-block">
+await fetch("http://localhost:8000/api/etl/run", {
+  method: "POST"
+});
+</pre>
+
+<hr>
+
+<h2>🧪 Example Usage (Python)</h2>
+
+<pre class="code-block">
+import requests
+
+symbols = requests.get("http://localhost:8000/api/symbols").json()
+print(symbols[:5])
+
+btc = requests.get("http://localhost:8000/api/prices/BTC-USD").json()
+print(btc[-3:])
+
+requests.post("http://localhost:8000/api/etl/run")
+</pre>
+
+<hr>
+
+<h2>📚 Data Formats</h2>
+
+<h3>OHLCV Candle</h3>
+<pre class="code-block">
+{
+  "date": "YYYY-MM-DD",
+  "open": float,
+  "high": float,
+  "low": float,
+  "close": float,
+  "volume": int
+}
+</pre>
+
+<h3>Asset Summary</h3>
+<pre class="code-block">
+{
+  "id": int,
+  "rank": int,
+  "symbol": "BTC-USD",
+  "name": "BTC",
+  "price": float,
+  "vol": "12.5M",
+  "change": float
+}
+</pre>
+
+<hr>
+
+<h2>🎯 Status Codes</h2>
+<ul>
+    <li><strong>200</strong> – Successful GET</li>
+    <li><strong>201</strong> – Successful POST (ETL)</li>
+    <li><strong>404</strong> – Symbol not found</li>
+    <li><strong>500</strong> – Database or ETL error</li>
+</ul>
+
+<hr>
+
+<footer style="margin-top:40px; text-align:center; opacity:0.7;">
+    © 2025 CryptoScope API — Documentation Page
+</footer>
+
+</body>
+</html>
